@@ -40,7 +40,8 @@ function startWebdeliveryHandler(){
 	sudo systemctl start postgresql
 	echo "starting msfconsole/handler... "
 	#this takes a while and cant be run async because of some bug with screen -d that terminates screen after msfconsole started
-	screen -dmS web_delivery bash -c "source ~/.bash_profile; \
+	screen -dmS web_delivery bash -c " \
+	source ~/.bash_profile; \
 		cd $MSFPATH; \
 		./msfconsole -L -x ' \
 			load msfd; \
@@ -51,7 +52,7 @@ function startWebdeliveryHandler(){
 			set URIPATH $URIPATH; \
 			exploit -j; \
 		' \
-	" \ 
+	"
 }
 function onNetworkUp()
 {
