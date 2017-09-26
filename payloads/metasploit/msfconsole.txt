@@ -1,6 +1,4 @@
 
-source msf_config.txt
-
 
 USE_ECM=true          # ==============================
 USE_RNDIS=true        # 
@@ -13,13 +11,13 @@ function onNetworkUp(){
 	echo "starting postgresql... "
 	sudo systemctl start postgresql
 	echo "starting msfconsole/handler... "
-	# reading from .bash_profile to "register" rvm and to omit --login (which doesnt work from systemd service)
-	# msfconsole -L is used because screen terminates otherwise
 	screen -dmS msfconsole bash -c " \
 		source ~/.bash_profile; \
+		# reading from .bash_profile to "register" rvm and to omit --login (which doesnt work from systemd service)
 		cd $MSFPATH; \
 		echo \"starting msfconsole, this might take a while....\"; \
 		./msfconsole -L"
+		# msfconsole -L is used because screen terminates otherwise
 }
 
 function onLogin() {
